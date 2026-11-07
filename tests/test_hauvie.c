@@ -58,6 +58,26 @@ static void test_invalid_patients(void) {
     assert(hauvies_helper_run(NULL, &patient, &report) == PIPELINE_INVALID_ARGUMENT);
 }
 
+static void test_ast_state_transitions(void) {
+    HauvieAst ast;
+    assert(hauvie_parse_ast(
+        "patient=Tech-Agent-404 severity=0.9 sulking=false target=java", &ast));
+    assert(ast.status == HAUVIE_AST_VERIFIED);
+    assert(ast.error == HAUVIE_PARSE_ERROR_NONE);
+    assert(ast.input.patient.hauvies_severity > HAUVIES_CRITICAL_THRESHOLD);
+    assert(ast.input.target == HAUVIE_TARGET_JAVA);
+
+    ExtruderContext ctx;
+    PipelineReport report;
+    assert(hauvies_helper_run(&ctx, &ast.input.patient, &report) == PIPELINE_CRITICAL_HAUVIES);
+
+    assert(!hauvie_parse_ast("patient=x;", &ast));
+    assert(ast.status == HAUVIE_AST_REJECTED);
+    assert(ast.error == HAUVIE_PARSE_ERROR_INVALID_INPUT);
+    /* The parse result remains inspectable; it is never represented as NULL. */
+    assert(ast.input.patient.individual_id[0] != '\0');
+}
+
 static void test_token_ast_survives_critical_severity(void) {
     HauvieInput input;
     assert(hauvie_parse_input(
@@ -85,6 +105,7 @@ int main(void) {
     test_successful_run();
     test_critical_run();
     test_invalid_patients();
+    test_ast_state_transitions();
     test_token_ast_survives_critical_severity();
     test_token_parser_rejects_bad_syntax();
     puts("Core Hauvie API tests passed.");

@@ -192,3 +192,35 @@ bool hauvie_parse_input(const char *source, HauvieInput *input) {
     *input = parsed;
     return true;
 }
+
+bool hauvie_parse_ast(const char *source, HauvieAst *ast) {
+    HauvieInput parsed;
+
+    if (ast == NULL) {
+        return false;
+    }
+
+    *ast = (HauvieAst){
+        .status = HAUVIE_AST_UNVERIFIED,
+        .error = HAUVIE_PARSE_ERROR_INVALID_INPUT,
+        .input = {
+            .patient = {
+                .individual_id = "Tech-Agent-404",
+                .hauvies_severity = 0.2f,
+                .is_sulking = false,
+                .raw_binary_volume = 4096
+            },
+            .target = HAUVIE_TARGET_C
+        }
+    };
+
+    if (!hauvie_parse_input(source, &parsed)) {
+        ast->status = HAUVIE_AST_REJECTED;
+        return false;
+    }
+
+    ast->input = parsed;
+    ast->error = HAUVIE_PARSE_ERROR_NONE;
+    ast->status = HAUVIE_AST_VERIFIED;
+    return true;
+}

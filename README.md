@@ -7,11 +7,11 @@ A small C project that models a Hauvie diagnostic pipeline. It currently provide
 ![Hauvie helper pipeline architecture](docs/pipeline.svg)
 
 ```text
-CLI input -> token.c -> HauvieInput -> hauvie.c -> PipelineReport -> router.c -> C/Java starter template
+CLI input -> token.c -> explicit AST state -> hauvie.c -> PipelineReport -> router.c -> C/Java starter template
 ```
 
 - `src/main.c` is the CLI entry point. It accepts either positional patient/severity arguments or `--source` input.
-- `src/token.c` parses a limited sequence of whitespace-separated `key=value` fields. This is a small configuration DSL, not a lexer/parser for C, Java, or arbitrary submitted code.
+- `src/token.c` parses a limited sequence of whitespace-separated `key=value` fields. This is a small configuration DSL, not a lexer/parser for C, Java, or arbitrary submitted code. Parsing uses an explicit result object: valid input becomes `HAUVIE_AST_VERIFIED`; malformed input becomes `HAUVIE_AST_REJECTED` with an error code. It does not represent ordinary parse failure as a null AST pointer.
 - `src/hauvie.c` validates patient data and returns a structured diagnostic result. Severity at or above `0.75`, or `sulking=true`, produces `PIPELINE_CRITICAL_HAUVIES`. The three-cycle success loop is currently a placeholder; no actual code extrusion or remediation occurs.
 - `src/router.c` selects a fixed C or Java starter template. It does not generate a program from the input, compile output, or execute code.
 - `include/hauvie.h` defines the public core types and API; the token and router headers expose their respective adapters.
@@ -42,14 +42,18 @@ The positional form remains available:
 ./hauvie-helper [patient-id [severity]]
 ```
 
+## AST state contract
+
+`HauvieAst` is a fixed-size, caller-owned parse-result/state object, not a heap-allocated general-language syntax tree. With a non-NULL output object, each parse attempt initializes that object and records a state: `HAUVIE_AST_VERIFIED` plus `HAUVIE_PARSE_ERROR_NONE` on success, or `HAUVIE_AST_REJECTED` plus an error code on invalid input. `HAUVIE_AST_UNVERIFIED` is the initial state during validation. Only verified input is passed to the diagnostic core. A syntactically valid but high-severity input is still verified; severity is a later domain-diagnostic decision and does not invalidate the AST state.
+
 ## Core API
 
 Call `hauvie_helper_run(context, patient, report)` from `include/hauvie.h`. It requires a valid context pointer and patient, initializes the context, does not mutate patient data, and returns a `PipelineResult`. The report may be `NULL` and otherwise carries the result and diagnostic metrics. The parser and router are separate APIs for callers that need those stages.
 
 ## Base truths and current limits
 
-- A syntactically valid input can still be diagnostically critical; critical severity does not invalidate the parsed `HauvieInput`.
-- Syntax errors are rejected before the core diagnostic runs.
+- Syntax validation and domain diagnosis are separate stages. A critical diagnostic does not turn a verified parse result into a null pointer.
+- Syntax errors are rejected before the core diagnostic runs; the AST result object remains available with a rejected state and error code.
 - Critical diagnostic reports can still be routed to a starter template, although the CLI exits with failure status for a critical result.
 - Severity thresholds and metrics are illustrative project rules, not medically or operationally validated facts.
 - There is no AST for a general programming language, no real C/Java generation, and no dynamic compilation or execution.

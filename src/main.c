@@ -81,13 +81,17 @@ int main(int argc, char **argv) {
     };
 
     if (argc == 3 && strcmp(argv[1], "--source") == 0) {
-        HauvieInput input;
-        if (!hauvie_parse_input(argv[2], &input)) {
-            fprintf(stderr,
-                    "[ERROR] Invalid input. Use key=value fields: patient, severity, sulking, target.\n");
+        HauvieAst ast;
+        if (!hauvie_parse_ast(argv[2], &ast)) {
+            fprintf(stderr, "[ERROR] Input rejected during AST verification (state=%d, error=%d).\n",
+                    ast.status, ast.error);
             return EXIT_FAILURE;
         }
-        return run_diagnostic(&input.patient, input.target, true);
+        if (ast.status != HAUVIE_AST_VERIFIED) {
+            fprintf(stderr, "[ERROR] Parser returned an unexpected AST state.\n");
+            return EXIT_FAILURE;
+        }
+        return run_diagnostic(&ast.input.patient, ast.input.target, true);
     }
 
     if (argc > 3) {
