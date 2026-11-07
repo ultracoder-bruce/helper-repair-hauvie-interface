@@ -1,19 +1,39 @@
 # Hauvie Helper Repair
 
-A small C diagnostic program for the Hauvies helper pipeline. The implementation keeps the original mock extruder terminology while making the diagnostic predictable and safe to call.
+The project is being expanded toward a reusable core-logic interface. The C library/API is separated from presentation so a CLI, web UI, or other front end can call the same deterministic behavior.
 
-## Build and run
+## Project layout
+
+- `include/hauvie.h` — public types, result codes, and callable API.
+- `src/hauvie.c` — core validation, initialization, and diagnostic logic. It does not print output or mutate patient data.
+- `src/main.c` — command-line presentation adapter.
+- `tests/test_hauvie.c` — direct tests of the core API.
+
+## Core interface
+
+Call `hauvie_helper_run(context, patient, report)` with a valid patient and context. It returns a `PipelineResult` and, when provided, fills `PipelineReport` with a stable result suitable for UI rendering. Severity must be finite and in the range `0.0`–`1.0`; severity at or above `0.75`, or a sulking state, returns `PIPELINE_CRITICAL_HAUVIES`. Patient data is read-only to the core routine.
+
+```c
+#include "hauvie.h"
+
+ExtruderContext context;
+PipelineReport report;
+HauviesPatient patient = {
+    .individual_id = "Tech-Agent-404",
+    .hauvies_severity = 0.2f,
+    .is_sulking = false,
+    .raw_binary_volume = 4096
+};
+
+PipelineResult result = hauvies_helper_run(&context, &patient, &report);
+```
+
+## Build and test
 
 ```sh
 make
-./hauvie-helper
-./hauvie-helper Tech-Agent-404 0.2
-```
-
-The optional severity must be between `0.0` and `1.0`; values at or above `0.75` are reported as critical. The diagnostic does not mutate patient data or gradually increase severity as a side effect. A critical patient exits unsuccessfully with a clear status, while a non-critical patient completes the three-cycle pipeline.
-
-Run the smoke tests with:
-
-```sh
+./hauvie-helper [patient-id [severity]]
 make test
 ```
+
+The core is intentionally small at this stage: cycle processing is a placeholder until the actual domain rules are specified. The public API establishes the seam where that logic can be implemented without coupling it to CLI output.

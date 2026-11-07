@@ -1,14 +1,20 @@
 CC ?= cc
+CPPFLAGS ?= -Iinclude
 CFLAGS ?= -std=c11 -Wall -Wextra -Wpedantic -Werror -O2
+LDLIBS ?= -lm
 
 .PHONY: all clean test
 
 all: hauvie-helper
 
-hauvie-helper: src/hauvie_helper.c
-	$(CC) $(CFLAGS) $< -o $@
+hauvie-helper: src/main.c src/hauvie.c include/hauvie.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) src/main.c src/hauvie.c $(LDLIBS) -o $@
 
-test: hauvie-helper
+test-hauvie: tests/test_hauvie.c src/hauvie.c include/hauvie.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_hauvie.c src/hauvie.c $(LDLIBS) -o $@
+
+test: hauvie-helper test-hauvie
+	./test-hauvie
 	./hauvie-helper
 	@if ./hauvie-helper test-patient 0.8; then \
 		echo "Expected critical severity to fail"; exit 1; \
@@ -22,4 +28,4 @@ test: hauvie-helper
 	fi
 
 clean:
-	rm -f hauvie-helper
+	rm -f hauvie-helper test-hauvie
