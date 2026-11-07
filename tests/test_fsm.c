@@ -45,7 +45,8 @@ static void test_both_fail(void) {
         &fsm, HAUVIE_FSM_ALPHA, alpha.request_id, HAUVIE_FSM_RESULT_INVALID);
     assert(beta.type == HAUVIE_FSM_ACTION_SUBMIT);
     HauvieFsmAction failed = hauvie_fsm_complete(
-        &fsm, HAUVIE_FSM_BETA, beta.request_id, HAUVIE_FSM_RESULT_TRANSPORT_ERROR);
+        &fsm, HAUVIE_FSM_BETA, beta.request_id,
+        HAUVIE_FSM_RESULT_TRANSPORT_ERROR);
     assert(failed.type == HAUVIE_FSM_ACTION_FAILED);
     assert(fsm.state == HAUVIE_FSM_FAILED);
 }
