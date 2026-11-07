@@ -3,17 +3,17 @@ CPPFLAGS ?= -Iinclude -Ifsm/include
 CFLAGS ?= -std=c11 -Wall -Wextra -Wpedantic -Werror -O2
 LDLIBS ?= -lm
 
-CORE = src/hauvie.c src/token.c src/router.c
+CORE = src/hauvie.c src/token.c src/token_stream.c src/router.c
 FSM = fsm/src/hauvie_fsm.c
 
 .PHONY: all clean test
 
 all: hauvie-helper
 
-hauvie-helper: src/main.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_router.h
+hauvie-helper: src/main.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) src/main.c $(CORE) $(LDLIBS) -o $@
 
-test-hauvie: tests/test_hauvie.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_router.h
+test-hauvie: tests/test_hauvie.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_hauvie.c $(CORE) $(LDLIBS) -o $@
 
 test-fsm: tests/test_fsm.c $(FSM) fsm/include/hauvie_fsm.h

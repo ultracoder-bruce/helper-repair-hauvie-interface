@@ -1,6 +1,7 @@
+#include "hauvie_token_stream.h"
+#include "hauvie_token.h"
 #include "hauvie.h"
 #include "hauvie_router.h"
-#include "hauvie_token.h"
 
 #include <assert.h>
 #include <math.h>
@@ -74,8 +75,52 @@ static void test_ast_state_transitions(void) {
     assert(!hauvie_parse_ast("patient=x;", &ast));
     assert(ast.status == HAUVIE_AST_REJECTED);
     assert(ast.error == HAUVIE_PARSE_ERROR_INVALID_INPUT);
-    /* The parse result remains inspectable; it is never represented as NULL. */
     assert(ast.input.patient.individual_id[0] != '\0');
+}
+
+static void test_token_stream(void) {
+    HauvieTokenStream stream;
+    HauvieToken token;
+    assert(hauvie_token_stream_init(&stream, "patient=alpha severity=0.3"));
+    assert(hauvie_token_stream_next(&stream, &token) == HAUVIE_STREAM_TOKEN);
+    assert(token.kind == HAUVIE_TOKEN_WORD && token.length == 7);
+    assert(memcmp(token.text, "patient", 7) == 0 && token.offset == 0);
+    assert(hauvie_token_stream_next(&stream, &token) == HAUVIE_STREAM_TOKEN);
+    assert(token.kind == HAUVIE_TOKEN_EQUALS && token.offset == 7);
+    assert(hauvie_token_stream_next(&stream, &token) == HAUVIE_STREAM_TOKEN);
+    assert(token.kind == HAUVIE_TOKEN_WORD && token.length == 5);
+    assert(memcmp(token.text, "alpha", 5) == 0);
+    assert(hauvie_token_stream_next(&stream, &token) == HAUVIE_STREAM_TOKEN);
+    assert(token.kind == HAUVIE_TOKEN_WORD && token.offset == 13);
+    assert(hauvie_token_stream_next(&stream, &token) == HAUVIE_STREAM_TOKEN);
+    assert(token.kind == HAUVIE_TOKEN_EQUALS);
+    assert(hauvie_token_stream_next(&stream, &token) == HAUVIE_STREAM_TOKEN);
+    assert(token.length == 3 && memcmp(token.text, "0.3", 3) == 0);
+    assert(hauvie_token_stream_next(&stream, &token) == HAUVIE_STREAM_END);
+}
+
+static void test_stream_limits_and_parser_integration(void) {
+    HauvieTokenStream stream;
+    HauvieToken token;
+    char too_many_tokens[128];
+    size_t used = 0;
+    for (size_t i = 0; i < 11; ++i) {
+        int written = snprintf(too_many_tokens + used,
+            sizeof(too_many_tokens) - used, "%sa=b ", i == 0 ? "" : "");
+        assert(written > 0);
+        used += (size_t)written;
+    }
+    assert(hauvie_token_stream_init(&stream, too_many_tokens));
+    HauvieStreamResult result;
+    do {
+        result = hauvie_token_stream_next(&stream, &token);
+    } while (result == HAUVIE_STREAM_TOKEN);
+    assert(result == HAUVIE_STREAM_ERROR);
+
+    HauvieInput input;
+    assert(hauvie_parse_input("patient=streamed severity=0.4 target=java", &input));
+    assert(strcmp(input.patient.individual_id, "streamed") == 0);
+    assert(input.target == HAUVIE_TARGET_JAVA);
 }
 
 static void test_token_ast_survives_critical_severity(void) {
@@ -106,8 +151,10 @@ int main(void) {
     test_critical_run();
     test_invalid_patients();
     test_ast_state_transitions();
+    test_token_stream();
+    test_stream_limits_and_parser_integration();
     test_token_ast_survives_critical_severity();
     test_token_parser_rejects_bad_syntax();
-    puts("Core Hauvie API tests passed.");
+    puts("Core Hauvie API and token stream tests passed.");
     return 0;
 }

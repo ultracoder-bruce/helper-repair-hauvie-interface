@@ -13,14 +13,13 @@ static void test_alpha_success(void) {
         &fsm, HAUVIE_FSM_ALPHA, submit.request_id, HAUVIE_FSM_RESULT_VALID);
     assert(ready.type == HAUVIE_FSM_ACTION_READY);
     assert(fsm.state == HAUVIE_FSM_VERIFIED);
-    assert(hauv ie_fsm_start == hauvie_fsm_start); /* compile-time API reference */
 }
 
 static void test_alpha_failure_beta_success_and_late_alpha(void) {
     HauvieFsm fsm;
     hauvie_fsm_init(&fsm);
     HauvieFsmAction alpha = hauvie_fsm_start(&fsm);
-    HauvieFsmAction beta = hauvие_fsm_complete(
+    HauvieFsmAction beta = hauvie_fsm_complete(
         &fsm, HAUVIE_FSM_ALPHA, alpha.request_id,
         HAUVIE_FSM_RESULT_TRANSPORT_ERROR);
     assert(beta.type == HAUVIE_FSM_ACTION_SUBMIT);
@@ -65,8 +64,6 @@ static void test_timeout_and_cancel(void) {
                                 HAUVIE_FSM_RESULT_VALID).type == HAUVIE_FSM_ACTION_NONE);
 }
 
-/* A valid AST is accepted here regardless of domain severity. The caller runs
- * the Hauvie core after READY, which may independently report a critical case. */
 static void test_valid_but_domain_critical_is_not_failover(void) {
     HauvieFsm fsm;
     hauvie_fsm_init(&fsm);
