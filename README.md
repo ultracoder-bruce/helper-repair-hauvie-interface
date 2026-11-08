@@ -43,7 +43,7 @@ Public interface: `fsm/include/hauvie_fsm.h`; implementation: `fsm/src/hauvie_fs
 
 ## Async provider runtime
 
-`fsm/include/hauvie_runtime.h` and `fsm/src/hauvie_runtime.c` provide an event-loop-agnostic adapter for the FSM. A caller supplies asynchronous submit/cancel callbacks and delivers completion or timeout events to the runtime. Provider requests receive monotonically increasing IDs, Alpha failures fall back to Beta, and stale events are ignored. The request payload is borrowed and must remain alive until a terminal callback; the submit callback should enqueue work and return promptly. No threads, timers, network clients, or live model providers are bundled. Run `make test` to exercise the runtime with a fake provider.
+`fsm/include/hauvie_runtime.h` and `fsm/src/hauvie_runtime.c` provide an event-loop-agnostic adapter for the FSM. A caller supplies asynchronous submit/cancel callbacks and delivers completion or timeout events to the runtime. Provider requests receive monotonically increasing IDs, Alpha failures fall back to Beta, and stale events are ignored. The request payload is borrowed and is limited to 512 bytes. The owner must keep it alive and unchanged through the terminal callback. Calls must be serialized on one event-loop thread; callbacks must be bounded and nonblocking and must not re-enter the runtime. See [`docs/runtime-api.md`](docs/runtime-api.md) for payload validation, callback semantics, cancellation, timeout, and lifetime policies. No threads, timers, network clients, or live model providers are bundled.
 
 ## Build and tests
 
@@ -54,7 +54,7 @@ make
 make test
 ```
 
-Tests cover core diagnostics, AST state, token stream boundaries and parser integration, FSM transitions, and the async runtime's success, failover, timeout, cancellation, and stale-response behavior.
+Tests cover core diagnostics, AST state, token stream boundaries and parser integration, FSM transitions, and the async runtime's success, failover, timeout, cancellation, stale-response behavior, and payload-size validation.
 
 ## Current limitations
 

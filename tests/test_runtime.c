@@ -51,6 +51,23 @@ static void init_runtime(HauvieRuntime *runtime, FakeProvider *fake) {
                                strlen("request")));
 }
 
+static void test_init_enforces_payload_bounds(void) {
+    HauvieRuntime runtime;
+    FakeProvider fake = {0};
+    char payload[HAUVIE_RUNTIME_MAX_REQUEST_SIZE] = {0};
+
+    assert(!hauvie_runtime_init(&runtime, fake_submit, fake_cancel,
+                                fake_terminal, &fake, NULL, 1));
+    assert(!hauvie_runtime_init(&runtime, fake_submit, fake_cancel,
+                                fake_terminal, &fake, payload,
+                                HAUVIE_RUNTIME_MAX_REQUEST_SIZE + 1u));
+    assert(hauvie_runtime_init(&runtime, fake_submit, fake_cancel,
+                               fake_terminal, &fake, NULL, 0));
+    assert(hauvie_runtime_init(&runtime, fake_submit, fake_cancel,
+                               fake_terminal, &fake, payload,
+                               HAUVIE_RUNTIME_MAX_REQUEST_SIZE));
+}
+
 static void test_success_and_stale_completion(void) {
     HauvieRuntime runtime;
     FakeProvider fake = {0};
@@ -163,6 +180,7 @@ static void test_submit_rejection_uses_failover(void) {
 }
 
 int main(void) {
+    test_init_enforces_payload_bounds();
     test_success_and_stale_completion();
     test_alpha_failover_beta_success_and_late_alpha();
     test_timeout_cancels_and_fails_over();

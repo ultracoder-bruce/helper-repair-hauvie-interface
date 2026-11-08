@@ -11,6 +11,9 @@
 extern "C" {
 #endif
 
+/* Hard upper bound for a borrowed provider request payload. */
+#define HAUVIE_RUNTIME_MAX_REQUEST_SIZE 512u
+
 typedef bool (*HauvieRuntimeSubmitFn)(
     void *context,
     HauvieFsmProvider provider,
@@ -42,11 +45,20 @@ typedef struct {
 } HauvieRuntime;
 
 /*
- * Initialize a caller-owned runtime. Request data is borrowed and must remain
- * valid until a terminal action is delivered. The submit callback should
- * enqueue work and return promptly; completions are delivered later through
- * hauvie_runtime_complete(). Returning false means the request was not
- * accepted and is treated as a transport failure.
+ * Initialize a caller-owned runtime. Payloads are limited to
+ * HAUVIE_RUNTIME_MAX_REQUEST_SIZE bytes; NULL is allowed only for a zero-size
+ * payload. The payload is borrowed, must remain alive and unchanged through a
+ * terminal callback, and must be readable for request_size bytes.
+ *
+ * Callbacks must enqueue/perform only bounded nonblocking work, must not call
+ * runtime APIs reentrantly, and must not retain the payload beyond the
+ * terminal callback unless they make their own copy. The runtime is not
+ * thread-safe: serialize all API calls and callbacks on one event-loop thread.
+ *
+ * A submit callback returning false means the request was not accepted and is
+ * treated as a transport failure, triggering Alpha-to-Beta failover when
+ * applicable. See docs/runtime-api.md for the full callback and lifecycle
+ * contract.
  */
 bool hauvie_runtime_init(
     HauvieRuntime *runtime,

@@ -37,7 +37,8 @@ bool hauvie_runtime_init(
     size_t request_size
 ) {
     if (runtime == NULL || submit == NULL ||
-        (request_data == NULL && request_size != 0)) {
+        (request_data == NULL && request_size != 0) ||
+        request_size > HAUVIE_RUNTIME_MAX_REQUEST_SIZE) {
         return false;
     }
 
