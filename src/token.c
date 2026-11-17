@@ -2,6 +2,7 @@
 #include "hauvie_token_stream.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,17 +17,24 @@ static bool token_is_word(const HauvieToken *token, const char *expected) {
            memcmp(token->text, expected, length) == 0;
 }
 
+static bool token_to_text(const HauvieToken *token, char *text, size_t capacity) {
+    if (token->kind != HAUVIE_TOKEN_WORD || token->length == 0 ||
+        token->length >= capacity) {
+        return false;
+    }
+    memcpy(text, token->text, token->length);
+    text[token->length] = '\0';
+    return true;
+}
+
 static bool parse_severity(const HauvieToken *token, float *severity) {
     char text[HAUVIE_MAX_TOKEN_LENGTH + 1];
     char *end = NULL;
     float value;
 
-    if (token->kind != HAUVIE_TOKEN_WORD || token->length == 0 ||
-        token->length > HAUVIE_MAX_TOKEN_LENGTH) {
+    if (!token_to_text(token, text, sizeof(text))) {
         return false;
     }
-    memcpy(text, token->text, token->length);
-    text[token->length] = '\0';
     errno = 0;
     value = strtof(text, &end);
     if (errno == ERANGE || end == text || *end != '\0' || !isfinite(value) ||
@@ -34,6 +42,48 @@ static bool parse_severity(const HauvieToken *token, float *severity) {
         return false;
     }
     *severity = value;
+    return true;
+}
+
+static bool parse_receiver_number(const HauvieToken *token, double *number,
+                                 bool unit_interval) {
+    char text[HAUVIE_MAX_TOKEN_LENGTH + 1];
+    char *end = NULL;
+    double value;
+
+    if (!token_to_text(token, text, sizeof(text))) {
+        return false;
+    }
+    errno = 0;
+    value = strtod(text, &end);
+    if (errno == ERANGE || end == text || *end != '\0' || !isfinite(value) ||
+        value < 0.0 || (unit_interval && value > 1.0)) {
+        return false;
+    }
+    *number = value;
+    return true;
+}
+
+static bool parse_receiver_context(const HauvieToken *token,
+                                   unsigned int *context_id) {
+    char text[HAUVIE_MAX_TOKEN_LENGTH + 1];
+    char *end = NULL;
+    unsigned long value;
+
+    if (!token_to_text(token, text, sizeof(text))) {
+        return false;
+    }
+    for (size_t i = 0; text[i] != '\0'; ++i) {
+        if (text[i] < '0' || text[i] > '9') {
+            return false;
+        }
+    }
+    errno = 0;
+    value = strtoul(text, &end, 10);
+    if (errno == ERANGE || end == text || *end != '\0' || value > UINT_MAX) {
+        return false;
+    }
+    *context_id = (unsigned int)value;
     return true;
 }
 
@@ -57,12 +107,21 @@ bool hauvie_parse_input(const char *source, HauvieInput *input) {
             .is_sulking = false,
             .raw_binary_volume = 4096
         },
-        .target = HAUVIE_TARGET_C
+        .target = HAUVIE_TARGET_C,
+        .receiver_analysis_enabled = false,
+        .receiver_context_id = 0,
+        .receiver_left_output = 0.0,
+        .receiver_right_output = 0.0,
+        .receiver_tolerance = 0.0
     };
     bool seen_patient = false;
     bool seen_severity = false;
     bool seen_sulking = false;
     bool seen_target = false;
+    bool seen_receiver_context = false;
+    bool seen_receiver_left = false;
+    bool seen_receiver_right = false;
+    bool seen_receiver_tolerance = false;
     bool saw_field = false;
 
     if (input == NULL || !hauvie_token_stream_init(&stream, source)) {
@@ -120,14 +179,44 @@ bool hauvie_parse_input(const char *source, HauvieInput *input) {
                 return false;
             }
             seen_target = true;
+        } else if (token_is_word(&key, "receiver_context")) {
+            if (seen_receiver_context || !parse_receiver_context(
+                    &value, &parsed.receiver_context_id)) {
+                return false;
+            }
+            seen_receiver_context = true;
+        } else if (token_is_word(&key, "receiver_left")) {
+            if (seen_receiver_left || !parse_receiver_number(
+                    &value, &parsed.receiver_left_output, true)) {
+                return false;
+            }
+            seen_receiver_left = true;
+        } else if (token_is_word(&key, "receiver_right")) {
+            if (seen_receiver_right || !parse_receiver_number(
+                    &value, &parsed.receiver_right_output, true)) {
+                return false;
+            }
+            seen_receiver_right = true;
+        } else if (token_is_word(&key, "receiver_tolerance")) {
+            if (seen_receiver_tolerance || !parse_receiver_number(
+                    &value, &parsed.receiver_tolerance, false)) {
+                return false;
+            }
+            seen_receiver_tolerance = true;
         } else {
             return false;
         }
     }
 
-    if (!saw_field || !hauvies_patient_is_valid(&parsed.patient)) {
+    bool any_receiver_field = seen_receiver_context || seen_receiver_left ||
+        seen_receiver_right || seen_receiver_tolerance;
+    bool complete_receiver_fields = seen_receiver_context && seen_receiver_left &&
+        seen_receiver_right && seen_receiver_tolerance;
+    if (!saw_field || (any_receiver_field && !complete_receiver_fields) ||
+        !hauvies_patient_is_valid(&parsed.patient)) {
         return false;
     }
+    parsed.receiver_analysis_enabled = complete_receiver_fields;
     *input = parsed;
     return true;
 }
@@ -149,7 +238,8 @@ bool hauvie_parse_ast(const char *source, HauvieAst *ast) {
                 .is_sulking = false,
                 .raw_binary_volume = 4096
             },
-            .target = HAUVIE_TARGET_C
+            .target = HAUVIE_TARGET_C,
+            .receiver_analysis_enabled = false
         }
     };
 

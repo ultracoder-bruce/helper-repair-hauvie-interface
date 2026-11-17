@@ -146,6 +146,34 @@ static void test_token_parser_rejects_bad_syntax(void) {
     assert(!hauvie_parse_input("patient=x;", &input));
 }
 
+static void test_whitespace_variants_preserve_settings_impact(void) {
+    static const char *const sources[] = {
+        "patient=critical severity=0.8 sulking=false target=c",
+        "patient\t= critical\nseverity\r=\t0.8\nsulking=false\ttarget=c",
+        "patient =\r\ncritical\tseverity = 0.8\rsulking = false\ntarget = c"
+    };
+
+    for (size_t i = 0; i < sizeof(sources) / sizeof(sources[0]); ++i) {
+        HauvieInput input;
+        ExtruderContext context;
+        PipelineReport report;
+
+        assert(hauvie_parse_input(sources[i], &input));
+        assert(strcmp(input.patient.individual_id, "critical") == 0);
+        assert(fabsf(input.patient.hauvies_severity - 0.8f) < 0.001f);
+        assert(!input.patient.is_sulking);
+        assert(input.target == HAUVIE_TARGET_C);
+
+        assert(hauvies_helper_run(&context, &input.patient, &report) ==
+               PIPELINE_CRITICAL_HAUVIES);
+        assert(report.cycles_completed == 0);
+        assert(fabsf(report.volumetric_efficiency -
+                     (MAX_VOLUMETRIC_EFFICIENCY - 45.5f)) < 0.001f);
+        assert(report.electrostatic_fizz_rate == 0.0f);
+        assert(!report.temporal_aperture_open);
+    }
+}
+
 int main(void) {
     test_successful_run();
     test_critical_run();
@@ -155,6 +183,7 @@ int main(void) {
     test_stream_limits_and_parser_integration();
     test_token_ast_survives_critical_severity();
     test_token_parser_rejects_bad_syntax();
+    test_whitespace_variants_preserve_settings_impact();
     puts("Core Hauvie API and token stream tests passed.");
     return 0;
 }
