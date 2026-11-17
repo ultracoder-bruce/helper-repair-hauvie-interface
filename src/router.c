@@ -1,27 +1,53 @@
 #include "hauvie_router.h"
+#include "hauvie_codegen.h"
 
 #include <stdio.h>
 
-static const char *result_name(PipelineResult result) {
-    switch (result) {
-        case PIPELINE_OK:
-            return "PIPELINE_OK";
-        case PIPELINE_CRITICAL_HAUVIES:
-            return "PIPELINE_CRITICAL_HAUVIES";
-        case PIPELINE_INVALID_ARGUMENT:
-            return "PIPELINE_INVALID_ARGUMENT";
-        case PIPELINE_INFRASTRUCTURE_FAILURE:
-            return "PIPELINE_INFRASTRUCTURE_FAILURE";
-        default:
-            return "PIPELINE_UNKNOWN";
+typedef struct {
+    char *buffer;
+    size_t capacity;
+    size_t written;
+    size_t required;
+} BufferSink;
+
+static bool file_write(void *context, const char *data, size_t length) {
+    FILE *output = context;
+    return fwrite(data, 1, length, output) == length;
+}
+
+static bool buffer_write(void *context, const char *data, size_t length) {
+    BufferSink *sink = context;
+    if (length > (size_t)-1 - sink->required) {
+        return false;
     }
+    sink->required += length;
+
+    size_t available = sink->capacity == 0 ? 0 : sink->capacity - 1 - sink->written;
+    size_t copy_length = length < available ? length : available;
+    if (copy_length > 0) {
+        for (size_t i = 0; i < copy_length; ++i) {
+            sink->buffer[sink->written + i] = data[i];
+        }
+        sink->written += copy_length;
+        sink->buffer[sink->written] = '\0';
+    }
+    return true;
 }
 
 bool hauvie_router_render_buffer(char *buffer, size_t capacity,
                                  size_t *written, size_t *required,
                                  HauvieTarget target,
                                  const PipelineReport *report) {
-    int formatted;
+    BufferSink state = {
+        .buffer = buffer,
+        .capacity = capacity,
+        .written = 0,
+        .required = 0
+    };
+    HauvieCodegenSink sink = {
+        .write = buffer_write,
+        .context = &state
+    };
 
     if (written != NULL) {
         *written = 0;
@@ -33,54 +59,26 @@ bool hauvie_router_render_buffer(char *buffer, size_t capacity,
         (capacity > 0 && buffer == NULL)) {
         return false;
     }
-
-    if (target == HAUVIE_TARGET_C) {
-        formatted = snprintf(buffer, capacity,
-            "/* Hauvie route: C; diagnostic result: %s; cycles: %u */\n"
-            "#include <stdio.h>\n"
-            "int main(void) {\n"
-            "    puts(\"Hauvie C template ready\");\n"
-            "    return %d;\n"
-            "}\n",
-            result_name(report->result), report->cycles_completed,
-            report->result == PIPELINE_OK ? 0 : 1);
-    } else if (target == HAUVIE_TARGET_JAVA) {
-        formatted = snprintf(buffer, capacity,
-            "// Hauvie route: Java; diagnostic result: %s; cycles: %u\n"
-            "public final class HauvieOutput {\n"
-            "    public static void main(String[] args) {\n"
-            "        System.out.println(\"Hauvie Java template ready\");\n"
-            "    }\n"
-            "}\n",
-            result_name(report->result), report->cycles_completed);
-    } else {
-        return false;
+    if (capacity > 0) {
+        buffer[0] = '\0';
     }
-
-    if (formatted < 0) {
+    if (!hauvie_codegen_generate(&sink, target, report)) {
         if (capacity > 0) {
             buffer[0] = '\0';
         }
         return false;
     }
 
-    *required = (size_t)formatted;
-    *written = capacity == 0 ? 0 :
-        (*required < capacity ? *required : capacity - 1);
+    *written = state.written;
+    *required = state.required;
     return true;
 }
 
 bool hauvie_router_render(FILE *output, HauvieTarget target,
                           const PipelineReport *report) {
-    char buffer[512];
-    size_t written;
-    size_t required;
-
-    if (output == NULL ||
-        !hauvie_router_render_buffer(buffer, sizeof(buffer), &written,
-                                     &required, target, report) ||
-        written != required) {
-        return false;
-    }
-    return fwrite(buffer, 1, written, output) == written;
+    HauvieCodegenSink sink = {
+        .write = file_write,
+        .context = output
+    };
+    return output != NULL && hauvie_codegen_generate(&sink, target, report);
 }
