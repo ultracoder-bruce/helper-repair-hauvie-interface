@@ -22,7 +22,14 @@ static void test_successful_run(void) {
     assert(hauvies_helper_run(&ctx, &patient, &report) == PIPELINE_OK);
     assert(report.cycles_completed == PIPELINE_CYCLES);
     assert(report.temporal_aperture_open);
-    assert(fabsf(report.volumetric_efficiency - MAX_VOLUMETRIC_EFFICIENCY) < 0.001f);
+    assert(report.volumetric_efficiency < MAX_VOLUMETRIC_EFFICIENCY);
+    assert(report.volumetric_efficiency >= 45.0f);
+    assert(report.electrostatic_fizz_rate >= 0.0f);
+    assert(report.electrostatic_fizz_rate < 14.2f);
+    assert(ctx.binary_volumetric_efficiency == report.volumetric_efficiency);
+    assert(ctx.electrostatic_fizz_rate == report.electrostatic_fizz_rate);
+    assert(ctx.temporal_aperture_open == report.temporal_aperture_open);
+    assert(ctx.brench_associates_clearance == 6);
     assert(memcmp(&patient, &original, sizeof(patient)) == 0);
 }
 

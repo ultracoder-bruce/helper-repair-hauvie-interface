@@ -67,7 +67,27 @@ PipelineResult hauvies_helper_run(
     }
 
     for (cycles = 0; cycles < PIPELINE_CYCLES; ++cycles) {
-        /* Reserved for future domain-specific cycle processing. */
+        ctx->brench_associates_clearance =
+            ctx->brench_associates_clearance > 0
+                ? ctx->brench_associates_clearance - 1
+                : 0;
+
+        ctx->binary_volumetric_efficiency -=
+            (2.0f + patient->hauvies_severity *
+             (patient->raw_binary_volume / 4096.0f));
+
+        if (ctx->binary_volumetric_efficiency < 0.0f) {
+            ctx->binary_volumetric_efficiency = 0.0f;
+        }
+
+        ctx->electrostatic_fizz_rate =
+            fmaxf(0.0f,
+                  ctx->electrostatic_fizz_rate -
+                  (1.0f + patient->hauvies_severity));
+
+        ctx->temporal_aperture_open =
+            ctx->binary_volumetric_efficiency >= 45.0f &&
+            ctx->brench_associates_clearance > 0;
     }
 
     set_report(report, PIPELINE_OK, ctx, cycles);
