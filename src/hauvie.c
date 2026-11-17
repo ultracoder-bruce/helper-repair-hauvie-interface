@@ -1,7 +1,7 @@
 #include "hauvie_monitor.h"
 
+#include <math.h>
 #include <stddef.h>
-#include <string.h>
 
 static const char *diagnostic_key_for_result(PipelineResult result) {
     switch (result) {

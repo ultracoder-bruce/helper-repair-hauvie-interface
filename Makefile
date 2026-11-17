@@ -3,20 +3,19 @@ CPPFLAGS ?= -Iinclude -Ifsm/include
 CFLAGS ?= -std=c11 -Wall -Wextra -Wpedantic -Werror -O2
 LDLIBS ?= -lm
 
-CORE = src/hauvie.c src/token.c src/token_stream.c src/router.c src/codegen.c src/receiver.c src/diagnostic.c src/remediation.c
+CORE = src/hauvie.c src/token.c src/token_stream.c src/router.c src/codegen.c src/receiver.c src/diagnostic.c src/remediation.c src/coding.c
 FSM = fsm/src/hauvie_fsm.c
 RUNTIME = fsm/src/hauvie_runtime.c
-RECEIVER = src/receiver.c
 REPAIR_QUEUE = src/repair_queue.c src/repair.c $(FSM) $(RUNTIME)
 
-.PHONY: all clean test test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-coding test-repair-queue test-router-remediation
+.PHONY: all clean test test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-coding test-monitor test-repair-queue test-router-remediation
 
 all: hauvie-helper
 
-hauvie-helper: src/main.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h include/hauvie_codegen.h include/hauvie_receiver.h include/hauvie_diagnostic.h include/hauvie_remediation.h
+hauvie-helper: src/main.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h include/hauvie_codegen.h include/hauvie_receiver.h include/hauvie_diagnostic.h include/hauvie_remediation.h include/hauvie_coding.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) src/main.c $(CORE) $(LDLIBS) -o $@
 
-test-hauvie: tests/test_hauvie.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h include/hauvie_codegen.h include/hauvie_receiver.h include/hauvie_diagnostic.h include/hauvie_remediation.h
+test-hauvie: tests/test_hauvie.c $(CORE)
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_hauvie.c $(CORE) $(LDLIBS) -o $@
 
 test-fsm: tests/test_fsm.c $(FSM) fsm/include/hauvie_fsm.h
@@ -25,28 +24,32 @@ test-fsm: tests/test_fsm.c $(FSM) fsm/include/hauvie_fsm.h
 test-runtime: tests/test_runtime.c $(FSM) $(RUNTIME) fsm/include/hauvie_fsm.h fsm/include/hauvie_runtime.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_runtime.c $(FSM) $(RUNTIME) -o $@
 
-test-receiver: tests/test_receiver.c $(RECEIVER) include/hauvie_receiver.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_receiver.c $(RECEIVER) $(LDLIBS) -o $@
+test-receiver: tests/test_receiver.c src/receiver.c include/hauvie_receiver.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_receiver.c src/receiver.c $(LDLIBS) -o $@
 
-test-diagnostic: tests/test_diagnostic.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_receiver.h include/hauvie_diagnostic.h
+test-diagnostic: tests/test_diagnostic.c $(CORE)
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_diagnostic.c $(CORE) $(LDLIBS) -o $@
 
 test-coding: tests/test_coding.c src/coding.c include/hauvie_coding.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_coding.c src/coding.c -o $@
 
-test-repair-queue: tests/test_repair_queue.c $(CORE) $(REPAIR_QUEUE) include/hauvie_repair.h include/hauvie_repair_queue.h
+test-monitor: tests/test_monitor.c src/hauvie.c src/coding.c include/hauvie_monitor.h include/hauvie_coding.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_monitor.c src/hauvie.c src/coding.c $(LDLIBS) -o $@
+
+test-repair-queue: tests/test_repair_queue.c $(CORE) $(REPAIR_QUEUE)
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_repair_queue.c $(CORE) $(REPAIR_QUEUE) $(LDLIBS) -o $@
 
-test-router-remediation: tests/test_router_remediation.c src/router.c src/codegen.c src/remediation.c include/hauvie_router.h include/hauvie_codegen.h include/hauvie_remediation.h
+test-router-remediation: tests/test_router_remediation.c src/router.c src/codegen.c src/remediation.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_router_remediation.c src/router.c src/codegen.c src/remediation.c -o $@
 
-test: hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-coding test-repair-queue test-router-remediation
+test: hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-coding test-monitor test-repair-queue test-router-remediation
 	./test-hauvie
 	./test-fsm
 	./test-runtime
 	./test-receiver
 	./test-diagnostic
 	./test-coding
+	./test-monitor
 	./test-repair-queue
 	./test-router-remediation
 	./hauvie-helper
@@ -73,4 +76,4 @@ test: hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnos
 	fi
 
 clean:
-	rm -f hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-coding test-repair-queue test-router-remediation
+	rm -f hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-coding test-monitor test-repair-queue test-router-remediation
