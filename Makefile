@@ -9,14 +9,14 @@ RUNTIME = fsm/src/hauvie_runtime.c
 RECEIVER = src/receiver.c
 REPAIR_QUEUE = src/repair_queue.c src/repair.c $(FSM) $(RUNTIME)
 
-.PHONY: all clean test test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-repair-queue test-router-remediation
+.PHONY: all clean test test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-coding test-repair-queue test-router-remediation
 
 all: hauvie-helper
 
-hauvie-helper: src/main.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h include/hauvie_codegen.h include/hauvie_receiver.h include/hauvie_diagnostic.h
+hauvie-helper: src/main.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h include/hauvie_codegen.h include/hauvie_receiver.h include/hauvie_diagnostic.h include/hauvie_remediation.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) src/main.c $(CORE) $(LDLIBS) -o $@
 
-test-hauvie: tests/test_hauvie.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h include/hauvie_codegen.h include/hauvie_receiver.h include/hauvie_diagnostic.h
+test-hauvie: tests/test_hauvie.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h include/hauvie_codegen.h include/hauvie_receiver.h include/hauvie_diagnostic.h include/hauvie_remediation.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_hauvie.c $(CORE) $(LDLIBS) -o $@
 
 test-fsm: tests/test_fsm.c $(FSM) fsm/include/hauvie_fsm.h
@@ -31,18 +31,22 @@ test-receiver: tests/test_receiver.c $(RECEIVER) include/hauvie_receiver.h
 test-diagnostic: tests/test_diagnostic.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_receiver.h include/hauvie_diagnostic.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_diagnostic.c $(CORE) $(LDLIBS) -o $@
 
+test-coding: tests/test_coding.c src/coding.c include/hauvie_coding.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_coding.c src/coding.c -o $@
+
 test-repair-queue: tests/test_repair_queue.c $(CORE) $(REPAIR_QUEUE) include/hauvie_repair.h include/hauvie_repair_queue.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_repair_queue.c $(CORE) $(REPAIR_QUEUE) $(LDLIBS) -o $@
 
 test-router-remediation: tests/test_router_remediation.c src/router.c src/codegen.c src/remediation.c include/hauvie_router.h include/hauvie_codegen.h include/hauvie_remediation.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_router_remediation.c src/router.c src/codegen.c src/remediation.c -o $@
 
-test: hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-repair-queue test-router-remediation
+test: hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-coding test-repair-queue test-router-remediation
 	./test-hauvie
 	./test-fsm
 	./test-runtime
 	./test-receiver
 	./test-diagnostic
+	./test-coding
 	./test-repair-queue
 	./test-router-remediation
 	./hauvie-helper
@@ -58,7 +62,7 @@ test: hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnos
 		echo "Critical input parsed and routed as expected"; \
 	fi
 	@if ./hauvie-helper --source 'patient=broken; severity=0.2'; then \
-		echo "Expected malformed source input to fail"; exit 1; \
+		echo "Expected malformed source input to fail"; \
 	else \
 		echo "Malformed source rejected as expected"; exit 1; \
 	fi
@@ -69,4 +73,4 @@ test: hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnos
 	fi
 
 clean:
-	rm -f hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-repair-queue test-router-remediation
+	rm -f hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnostic test-coding test-repair-queue test-router-remediation
