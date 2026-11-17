@@ -3,19 +3,18 @@ CPPFLAGS ?= -Iinclude -Ifsm/include
 CFLAGS ?= -std=c11 -Wall -Wextra -Wpedantic -Werror -O2
 LDLIBS ?= -lm
 
-CORE = src/hauvie.c src/token.c src/token_stream.c src/router.c
+CORE = src/hauvie.c src/token.c src/token_stream.c src/router.c src/receiver.c src/diagnostic.c
 FSM = fsm/src/hauvie_fsm.c
 RUNTIME = fsm/src/hauvie_runtime.c
-RECEIVER = src/receiver.c
 
-.PHONY: all clean test test-hauvie test-fsm test-runtime test-receiver
+.PHONY: all clean test test-hauvie test-fsm test-runtime test-receiver test-diagnostic
 
 all: hauvie-helper
 
-hauvie-helper: src/main.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h
+hauvie-helper: src/main.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h include/hauvie_receiver.h include/hauvie_diagnostic.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) src/main.c $(CORE) $(LDLIBS) -o $@
 
-test-hauvie: tests/test_hauvie.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h
+test-hauvie: tests/test_hauvie.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_router.h include/hauvie_receiver.h include/hauvie_diagnostic.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_hauvie.c $(CORE) $(LDLIBS) -o $@
 
 test-fsm: tests/test_fsm.c $(FSM) fsm/include/hauvie_fsm.h
@@ -24,14 +23,18 @@ test-fsm: tests/test_fsm.c $(FSM) fsm/include/hauvie_fsm.h
 test-runtime: tests/test_runtime.c $(FSM) $(RUNTIME) fsm/include/hauvie_fsm.h fsm/include/hauvie_runtime.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_runtime.c $(FSM) $(RUNTIME) -o $@
 
-test-receiver: tests/test_receiver.c $(RECEIVER) include/hauvie_receiver.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_receiver.c $(RECEIVER) $(LDLIBS) -o $@
+test-receiver: tests/test_receiver.c src/receiver.c include/hauvie_receiver.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_receiver.c src/receiver.c $(LDLIBS) -o $@
 
-test: hauvie-helper test-hauvie test-fsm test-runtime test-receiver
+test-diagnostic: tests/test_diagnostic.c $(CORE) include/hauvie.h include/hauvie_token.h include/hauvie_token_stream.h include/hauvie_receiver.h include/hauvie_diagnostic.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_diagnostic.c $(CORE) $(LDLIBS) -o $@
+
+test: hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnostic
 	./test-hauvie
 	./test-fsm
 	./test-runtime
 	./test-receiver
+	./test-diagnostic
 	./hauvie-helper
 	./hauvie-helper --source 'patient=Tech-Agent-404 severity=0.2 sulking=false target=c'
 	@if ./hauvie-helper test-patient 0.8; then \
@@ -56,4 +59,4 @@ test: hauvie-helper test-hauvie test-fsm test-runtime test-receiver
 	fi
 
 clean:
-	rm -f hauvie-helper test-hauvie test-fsm test-runtime test-receiver
+	rm -f hauvie-helper test-hauvie test-fsm test-runtime test-receiver test-diagnostic

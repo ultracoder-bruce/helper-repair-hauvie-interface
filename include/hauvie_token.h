@@ -16,6 +16,12 @@ typedef enum {
 typedef struct {
     HauviesPatient patient;
     HauvieTarget target;
+    /* Optional scalar receiver comparison; kept distinct from patient data. */
+    bool receiver_analysis_enabled;
+    unsigned int receiver_context_id;
+    double receiver_left_output;
+    double receiver_right_output;
+    double receiver_tolerance;
 } HauvieInput;
 
 typedef enum {
@@ -29,17 +35,14 @@ typedef enum {
     HAUVIE_PARSE_ERROR_INVALID_INPUT
 } HauvieParseError;
 
-/*
- * A non-heap parse result/state container. Every parse attempt with a non-NULL
- * output receives a state: VERIFIED on success, REJECTED on invalid input.
- */
+/* A non-heap parse result/state container with explicit verification status. */
 typedef struct {
     HauvieAstStatus status;
     HauvieParseError error;
     HauvieInput input;
 } HauvieAst;
 
-/* Parse the bounded key=value language into an explicit AST state. */
+/* Parse bounded patient key=value fields and optional receiver_* fields. */
 bool hauvie_parse_ast(const char *source, HauvieAst *ast);
 
 /* Compatibility helper: parse directly into a validated input value. */
