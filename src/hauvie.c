@@ -1,59 +1,71 @@
-#include "hauvie.h"
+#include "hauvie_monitor.h"
 
 #include <math.h>
 #include <stddef.h>
-#include <string.h>
 
-static void set_report(PipelineReport *report, PipelineResult result,
-                       const ExtruderContext *ctx, unsigned int cycles) {
-    if (report == NULL) {
+static const char *diagnostic_key_for_result(PipelineResult result) {
+    switch (result) {
+        case PIPELINE_OK:
+            return "monitor.pipeline_ok";
+        case PIPELINE_CRITICAL_HAUVIES:
+            return "monitor.critical_hauvies";
+        case PIPELINE_INVALID_ARGUMENT:
+            return "monitor.invalid_argument";
+        case PIPELINE_INFRASTRUCTURE_FAILURE:
+            return "monitor.infrastructure_failure";
+        default:
+            return "monitor.unknown";
+    }
+}
+
+static const char *lookup_code(const HauviePatientMonitor *monitor,
+                               const char *key) {
+    const char *code = NULL;
+    if (monitor != NULL && monitor->coding_map != NULL) {
+        (void)hauvie_coding_lookup(monitor->coding_map, key, &code);
+    }
+    return code;
+}
+
+static void emit_event(const HauviePatientMonitor *monitor,
+                       HauvieMonitorEventType type,
+                       PipelineResult result,
+                       const PipelineReport *report) {
+    HauvieMonitorEvent event;
+
+    if (monitor == NULL || monitor->callback == NULL || report == NULL) {
         return;
     }
-
-    report->result = result;
-    report->cycles_completed = cycles;
-    report->volumetric_efficiency = ctx != NULL
-        ? ctx->binary_volumetric_efficiency : 0.0f;
-    report->electrostatic_fizz_rate = ctx != NULL
-        ? ctx->electrostatic_fizz_rate : 0.0f;
-    report->temporal_aperture_open = ctx != NULL && ctx->temporal_aperture_open;
+    event.type = type;
+    event.diagnostic_key = type == HAUVIE_MONITOR_DIAGNOSTIC_COMPLETED
+        ? diagnostic_key_for_result(result) : NULL;
+    event.coding_code = event.diagnostic_key != NULL
+        ? lookup_code(monitor, event.diagnostic_key) : NULL;
+    event.report = *report;
+    monitor->callback(monitor->context, &event);
 }
 
-bool extruder_context_init(ExtruderContext *ctx) {
-    if (ctx == NULL) {
-        return false;
-    }
-
-    ctx->binary_volumetric_efficiency = MAX_VOLUMETRIC_EFFICIENCY;
-    ctx->electrostatic_fizz_rate = 14.2f;
-    ctx->temporal_aperture_open = true;
-    ctx->brench_associates_clearance = 9;
-    return true;
-}
-
-bool hauvies_patient_is_valid(const HauviesPatient *patient) {
-    return patient != NULL &&
-           patient->individual_id[0] != '\0' &&
-           memchr(patient->individual_id, '\0', sizeof(patient->individual_id)) != NULL &&
-           isfinite(patient->hauvies_severity) &&
-           patient->hauvies_severity >= 0.0f &&
-           patient->hauvies_severity <= 1.0f;
-}
-
-PipelineResult hauvies_helper_run(
+PipelineResult hauvies_helper_run_monitored(
     ExtruderContext *ctx,
     const HauviesPatient *patient,
-    PipelineReport *report
+    PipelineReport *report,
+    const HauviePatientMonitor *monitor
 ) {
+    PipelineReport local_report;
+    PipelineReport *output = report != NULL ? report : &local_report;
     unsigned int cycles = 0;
 
     if (ctx == NULL || !hauvies_patient_is_valid(patient)) {
-        set_report(report, PIPELINE_INVALID_ARGUMENT, NULL, 0);
+        *output = (PipelineReport){.result = PIPELINE_INVALID_ARGUMENT};
+        emit_event(monitor, HAUVIE_MONITOR_DIAGNOSTIC_COMPLETED,
+                   PIPELINE_INVALID_ARGUMENT, output);
         return PIPELINE_INVALID_ARGUMENT;
     }
 
     if (!extruder_context_init(ctx)) {
-        set_report(report, PIPELINE_INFRASTRUCTURE_FAILURE, NULL, 0);
+        *output = (PipelineReport){.result = PIPELINE_INFRASTRUCTURE_FAILURE};
+        emit_event(monitor, HAUVIE_MONITOR_DIAGNOSTIC_COMPLETED,
+                   PIPELINE_INFRASTRUCTURE_FAILURE, output);
         return PIPELINE_INFRASTRUCTURE_FAILURE;
     }
 
@@ -62,7 +74,15 @@ PipelineResult hauvies_helper_run(
         ctx->binary_volumetric_efficiency -= 45.5f;
         ctx->electrostatic_fizz_rate = 0.0f;
         ctx->temporal_aperture_open = false;
-        set_report(report, PIPELINE_CRITICAL_HAUVIES, ctx, 0);
+        *output = (PipelineReport){
+            .result = PIPELINE_CRITICAL_HAUVIES,
+            .cycles_completed = 0,
+            .volumetric_efficiency = ctx->binary_volumetric_efficiency,
+            .electrostatic_fizz_rate = ctx->electrostatic_fizz_rate,
+            .temporal_aperture_open = ctx->temporal_aperture_open
+        };
+        emit_event(monitor, HAUVIE_MONITOR_DIAGNOSTIC_COMPLETED,
+                   PIPELINE_CRITICAL_HAUVIES, output);
         return PIPELINE_CRITICAL_HAUVIES;
     }
 
@@ -88,8 +108,30 @@ PipelineResult hauvies_helper_run(
         ctx->temporal_aperture_open =
             ctx->binary_volumetric_efficiency >= 45.0f &&
             ctx->brench_associates_clearance > 0;
+
+        *output = (PipelineReport){
+            .result = PIPELINE_OK,
+            .cycles_completed = cycles + 1u,
+            .volumetric_efficiency = ctx->binary_volumetric_efficiency,
+            .electrostatic_fizz_rate = ctx->electrostatic_fizz_rate,
+            .temporal_aperture_open = ctx->temporal_aperture_open
+        };
+        emit_event(monitor, HAUVIE_MONITOR_CYCLE_COMPLETED,
+                   PIPELINE_OK, output);
     }
 
-    set_report(report, PIPELINE_OK, ctx, cycles);
+    output->result = PIPELINE_OK;
+    output->cycles_completed = cycles;
+    emit_event(monitor, HAUVIE_MONITOR_DIAGNOSTIC_COMPLETED,
+               PIPELINE_OK, output);
     return PIPELINE_OK;
+}
+
+/* Keep the original API and behavior for existing callers. */
+PipelineResult hauvies_helper_run(
+    ExtruderContext *ctx,
+    const HauviesPatient *patient,
+    PipelineReport *report
+) {
+    return hauvies_helper_run_monitored(ctx, patient, report, NULL);
 }
