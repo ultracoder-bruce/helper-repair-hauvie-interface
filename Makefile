@@ -6,8 +6,9 @@ LDLIBS ?= -lm
 CORE = src/hauvie.c src/token.c src/token_stream.c src/router.c
 FSM = fsm/src/hauvie_fsm.c
 RUNTIME = fsm/src/hauvie_runtime.c
+RECEIVER = src/receiver.c
 
-.PHONY: all clean test
+.PHONY: all clean test test-hauvie test-fsm test-runtime test-receiver
 
 all: hauvie-helper
 
@@ -23,10 +24,14 @@ test-fsm: tests/test_fsm.c $(FSM) fsm/include/hauvie_fsm.h
 test-runtime: tests/test_runtime.c $(FSM) $(RUNTIME) fsm/include/hauvie_fsm.h fsm/include/hauvie_runtime.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_runtime.c $(FSM) $(RUNTIME) -o $@
 
-test: hauvie-helper test-hauvie test-fsm test-runtime
+test-receiver: tests/test_receiver.c $(RECEIVER) include/hauvie_receiver.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/test_receiver.c $(RECEIVER) $(LDLIBS) -o $@
+
+test: hauvie-helper test-hauvie test-fsm test-runtime test-receiver
 	./test-hauvie
 	./test-fsm
 	./test-runtime
+	./test-receiver
 	./hauvie-helper
 	./hauvie-helper --source 'patient=Tech-Agent-404 severity=0.2 sulking=false target=c'
 	@if ./hauvie-helper test-patient 0.8; then \
@@ -51,4 +56,4 @@ test: hauvie-helper test-hauvie test-fsm test-runtime
 	fi
 
 clean:
-	rm -f hauvie-helper test-hauvie test-fsm test-runtime
+	rm -f hauvie-helper test-hauvie test-fsm test-runtime test-receiver
